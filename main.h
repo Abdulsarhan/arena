@@ -41,25 +41,3 @@ void FreeArena(Arena* arena) {
     free(arena->arenaPtr);
     arena->arenaPtr = NULL;
 }
-
-
-void ArenaExample() {
-    Arena arena = InitArena(sizeof(int) * 2);
-
-    int* firstNumber = ArenaAlloc(&arena, sizeof(int));
-    *firstNumber = 1;
-    printf("%lu\n", arena.previousAllocs);
-    
-    int* secondNumber = ArenaAlloc(&arena, sizeof(int));
-    *secondNumber = 2;
-    printf("%lu\n", arena.previousAllocs);
-    
-    printf("%d, %d\n", *firstNumber, *secondNumber);
-    ResetArena(&arena);
-    FreeArena(&arena);
-}
-
-int main() {
-    ArenaExample();
-    return 0;
-}
