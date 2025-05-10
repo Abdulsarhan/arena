@@ -7,56 +7,67 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define ARENA_ALIGNMENT 16
+#define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+
 typedef struct {
-    uintptr_t previousAllocs;
-    uintptr_t arenaSize;
-    void* arenaPtr;
-}Arena;
+    size_t memory_used; // total memory allocated with ArenaAlloc
+    size_t arena_size; // total capacity of the arena.
+    char* arena_ptr; // pointer to the next region of unused memory in the arena.
+} Arena;
 
 static inline Arena InitArena(size_t size) {
-    Arena arena;
-    arena.arenaSize = size;
-    arena.arenaPtr = malloc(size);
-    if (arena.arenaPtr == NULL) {
+    Arena arena = { 0 };
+    arena.arena_size = size;
+    arena.arena_ptr = (char*)malloc(size);
+    if (!arena.arena_ptr) {
         fprintf(stderr, "ERROR: Failed to allocate memory for arena!\n");
-        exit(-1);
+        exit(EXIT_FAILURE);
     }
-    arena.previousAllocs = 0;
     return arena;
 }
 
-static inline void* ArenaAlloc(Arena& arena, size_t allocSize) {
-    if (arena.previousAllocs + allocSize > arena.arenaSize) {
-        fprintf(stderr, "ERROR: Allocation exceeds the size of the arena!");
-        exit(-1);
+static inline void* ArenaAlloc(Arena* arena, size_t alloc_size) {
+    uintptr_t base = (uintptr_t)(arena->arena_ptr + arena->memory_used);
+    uintptr_t aligned = ALIGN_UP(base, ARENA_ALIGNMENT);
+    size_t padding = aligned - base;
+    size_t total_size = padding + alloc_size;
+
+    if (arena->memory_used + total_size > arena->arena_size) {
+        fprintf(stderr, "ERROR: Allocation exceeds the size of the arena!\n");
+        exit(EXIT_FAILURE);
     }
-    void* alloc = (char*)arena.arenaPtr + arena.previousAllocs;
-    arena.previousAllocs += allocSize;
-    return alloc;
+
+    arena->memory_used += total_size;
+    return (void*)aligned;
 }
 
 static inline void ResetArena(Arena* arena) {
-    memset(arena->arenaPtr, 0, arena->arenaSize);
-    arena->previousAllocs = 0;
+    if (arena->arena_ptr) {
+        memset(arena->arena_ptr, 0, arena->arena_size);
+        arena->memory_used = 0;
+    }
 }
 
 static inline void FreeArena(Arena* arena) {
-    if (arena->arenaPtr != NULL) {
-        free(arena->arenaPtr);
-        arena->arenaPtr = NULL;
-    }
-    else {
-        fprintf(stderr, "ERROR: Arena is null, not going to free arena.");
+    if (arena->arena_ptr) {
+        free(arena->arena_ptr);
+        arena->arena_ptr = NULL;
     }
 }
-static inline int ResetRegion(Arena arena, void* region_start, size_t region_end) {
-    if (arena.arenaPtr) {
-        memset(region_start, 0, region_end);
-        fprintf(stdout, "INFO: region reset successfully!");
+
+static inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size) {
+    uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
+    uintptr_t arena_end = arena_start + arena->arena_size;
+    uintptr_t region_addr = (uintptr_t)region_start;
+
+    if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
+        memset(region_start, 0, region_size);
+        fprintf(stdout, "INFO: Arena Region reset successfully!\n");
         return 0;
     }
     else {
-        fprintf(stderr, "ERROR: Arena is null, not going to reset region.");
+        fprintf(stderr, "ERROR: Arena Region is out of bounds of the arena!\n");
         return -1;
     }
 }
