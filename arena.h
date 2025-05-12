@@ -33,8 +33,9 @@ ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_
 #ifdef __cplusplus
 }
 #endif
-#define ARENA_IMPLEMENTATION
+
 #ifdef ARENA_IMPLEMENTATION
+
 ARENADEF Arena init_arena(size_t size) {
     Arena arena = { 0 };
     arena.arena_size = size;
