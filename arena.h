@@ -10,6 +10,11 @@
 #define ARENA_ALIGNMENT 16
 #define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
+#ifdef ARENA_STATIC
+#define ARENADEF static
+#else
+#define ARENADEF extern
+
 typedef struct {
     size_t memory_used; // total memory allocated with ArenaAlloc
     size_t arena_size; // total capacity of the arena.
@@ -20,17 +25,17 @@ typedef struct {
 extern "C" {
 #endif
 
-static inline Arena InitArena(size_t size);
-static inline void* ArenaAlloc(Arena* arena, size_t alloc_size);
-static inline void ResetArena(Arena* arena);
-static inline void FreeArena(Arena* arena);
-static inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size);
+ARENADEF inline Arena InitArena(size_t size);
+ARENADEF inline void* ArenaAlloc(Arena* arena, size_t alloc_size);
+ARENADEF inline void ResetArena(Arena* arena);
+ARENADEF inline void FreeArena(Arena* arena);
+ARENADEF inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size);
 
 #ifdef __cplusplus
 }
 #endif
 
-static inline Arena InitArena(size_t size) {
+ARENADEF inline Arena InitArena(size_t size) {
     Arena arena = { 0 };
     arena.arena_size = size;
     arena.arena_ptr = (char*)malloc(size);
@@ -41,7 +46,7 @@ static inline Arena InitArena(size_t size) {
     return arena;
 }
 
-static inline void* ArenaAlloc(Arena* arena, size_t alloc_size) {
+ARENADEF inline void* ArenaAlloc(Arena* arena, size_t alloc_size) {
     uintptr_t base = (uintptr_t)(arena->arena_ptr + arena->memory_used);
     uintptr_t aligned = ALIGN_UP(base, ARENA_ALIGNMENT);
     size_t padding = aligned - base;
@@ -56,21 +61,21 @@ static inline void* ArenaAlloc(Arena* arena, size_t alloc_size) {
     return (void*)aligned;
 }
 
-static inline void ResetArena(Arena* arena) {
+ARENADEF inline void ResetArena(Arena* arena) {
     if (arena->arena_ptr) {
         memset(arena->arena_ptr, 0, arena->arena_size);
         arena->memory_used = 0;
     }
 }
 
-static inline void FreeArena(Arena* arena) {
+ARENADEF inline void FreeArena(Arena* arena) {
     if (arena->arena_ptr) {
         free(arena->arena_ptr);
         arena->arena_ptr = NULL;
     }
 }
 
-static inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size) {
+ARENADEF inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size) {
     uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
     uintptr_t arena_end = arena_start + arena->arena_size;
     uintptr_t region_addr = (uintptr_t)region_start;
