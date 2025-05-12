@@ -3,6 +3,7 @@
 Basic arena arena allocator implementation.
 
 ## Basic Usage
+```C
 #define MEGABYTES(x) ((x) * 1024 * 1024)
 
 #include <stdio.h>
@@ -23,4 +24,6 @@ printf(hello_world);
 free_arena(&arena);
 
 return 0;
+
 }
+```

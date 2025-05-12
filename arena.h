@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <string.h>
 
 #define ARENA_ALIGNMENT 16
@@ -25,18 +24,18 @@ typedef struct {
 extern "C" {
 #endif
 
-ARENADEF inline Arena init_arena(size_t size);
-ARENADEF inline void* alloc_arena(Arena* arena, size_t alloc_size);
-ARENADEF inline void reset_arena(Arena* arena);
-ARENADEF inline void free_arena(Arena* arena);
-ARENADEF inline int reset_region(const Arena* arena, void* region_start, size_t region_size);
+ARENADEF Arena init_arena(size_t size);
+ARENADEF void* alloc_arena(Arena* arena, size_t alloc_size);
+ARENADEF void reset_arena(Arena* arena);
+ARENADEF void free_arena(Arena* arena);
+ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_size);
 
 #ifdef __cplusplus
 }
 #endif
-
+#define ARENA_IMPLEMENTATION
 #ifdef ARENA_IMPLEMENTATION
-ARENADEF inline Arena init_arena(size_t size) {
+ARENADEF Arena init_arena(size_t size) {
     Arena arena = { 0 };
     arena.arena_size = size;
     arena.arena_ptr = (char*)malloc(size);
@@ -47,7 +46,7 @@ ARENADEF inline Arena init_arena(size_t size) {
     return arena;
 }
 
-ARENADEF inline void* alloc_arena(Arena* arena, size_t alloc_size) {
+ARENADEF void* alloc_arena(Arena* arena, size_t alloc_size) {
     uintptr_t base = (uintptr_t)(arena->arena_ptr + arena->memory_used);
     uintptr_t aligned = ALIGN_UP(base, ARENA_ALIGNMENT);
     size_t padding = aligned - base;
@@ -62,21 +61,21 @@ ARENADEF inline void* alloc_arena(Arena* arena, size_t alloc_size) {
     return (void*)aligned;
 }
 
-ARENADEF inline void reset_arena(Arena* arena) {
+ARENADEF void reset_arena(Arena* arena) {
     if (arena->arena_ptr) {
         memset(arena->arena_ptr, 0, arena->arena_size);
         arena->memory_used = 0;
     }
 }
 
-ARENADEF inline void free_arena(Arena* arena) {
+ARENADEF void free_arena(Arena* arena) {
     if (arena->arena_ptr) {
         free(arena->arena_ptr);
         arena->arena_ptr = NULL;
     }
 }
 
-ARENADEF inline int reset_region(const Arena* arena, void* region_start, size_t region_size) {
+ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_size) {
     uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
     uintptr_t arena_end = arena_start + arena->arena_size;
     uintptr_t region_addr = (uintptr_t)region_start;
