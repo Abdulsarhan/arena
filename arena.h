@@ -16,6 +16,20 @@ typedef struct {
     char* arena_ptr; // pointer to the next region of unused memory in the arena.
 } Arena;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static inline Arena InitArena(size_t size);
+static inline void* ArenaAlloc(Arena* arena, size_t alloc_size);
+static inline void ResetArena(Arena* arena);
+static inline void FreeArena(Arena* arena);
+static inline int ResetRegion(const Arena* arena, void* region_start, size_t region_size);
+
+#ifdef __cplusplus
+}
+#endif
+
 static inline Arena InitArena(size_t size) {
     Arena arena = { 0 };
     arena.arena_size = size;
