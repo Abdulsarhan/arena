@@ -13,9 +13,10 @@
 #define ARENADEF static
 #else
 #define ARENADEF extern
+#endif
 
 typedef struct {
-    size_t memory_used; // total memory allocated with alloc_arena
+    size_t memory_used; // total memory allocated with arena_alloc
     size_t arena_size; // total capacity of the arena.
     char* arena_ptr; // pointer to the next region of unused memory in the arena.
 } Arena;
@@ -25,7 +26,7 @@ extern "C" {
 #endif
 
 ARENADEF Arena init_arena(size_t size);
-ARENADEF void* alloc_arena(Arena* arena, size_t alloc_size);
+ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size);
 ARENADEF void reset_arena(Arena* arena);
 ARENADEF void free_arena(Arena* arena);
 ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_size);
@@ -47,7 +48,7 @@ ARENADEF Arena init_arena(size_t size) {
     return arena;
 }
 
-ARENADEF void* alloc_arena(Arena* arena, size_t alloc_size) {
+ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
     uintptr_t base = (uintptr_t)(arena->arena_ptr + arena->memory_used);
     uintptr_t aligned = ALIGN_UP(base, ARENA_ALIGNMENT);
     size_t padding = aligned - base;
@@ -94,4 +95,4 @@ ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_
 
 #endif // Implementation Macro
 
-#endif // ARENA_H
+#endif
