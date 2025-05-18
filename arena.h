@@ -1,7 +1,7 @@
-#include <stdio.h>
+#include <stdio.h> // printf
 #include <string.h> // memset
-#include <stdint.h>
-#include <stdlib.h>
+#include <stdint.h> // uintptr_t
+#include <stdlib.h> // EXIT_FAILURE
 
 #define ARENA_ALIGNMENT 16
 #define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
@@ -57,7 +57,7 @@ ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_
 static Arena arena_init_platform(size_t size);
 static void arena_reset_platform(Arena* arena);
 static void arena_free_platform(Arena* arena);
-static size_t arena_get_page_size();
+static size_t arena_get_page_size_platform();
 
 ARENADEF Arena init_arena(size_t size) {
     return arena_init_platform(size);
@@ -76,7 +76,7 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
     }
 
     if (required > arena->committed_size) {
-        size_t page_size = arena_get_page_size();
+        size_t page_size = arena_get_page_size_platform();
         size_t new_commit_end = ALIGN_UP(required, page_size);
         size_t commit_amount = new_commit_end - arena->committed_size;
 
@@ -135,21 +135,17 @@ ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_
 
 // ------------------ PLATFORM-SPECIFIC ------------------
 
-static size_t arena_get_page_size() {
 #ifdef ARENA_WINDOWS
+
+static size_t arena_get_page_size_platform() {
     SYSTEM_INFO sys_info;
     GetSystemInfo(&sys_info);
     return (size_t)sys_info.dwPageSize;
-#else
-    return (size_t)sysconf(_SC_PAGESIZE);
-#endif
 }
-
-#ifdef ARENA_WINDOWS
 
 static Arena arena_init_platform(size_t size) {
     Arena arena = {0};
-    size_t page_size = arena_get_page_size();
+    size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
     arena.arena_ptr = (char*)VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
@@ -176,7 +172,7 @@ static void arena_free_platform(Arena* arena) {
 
 static Arena arena_init_platform(size_t size) {
     Arena arena = {0};
-    size_t page_size = arena_get_page_size();
+    size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
     arena.arena_ptr = (char*)mmap(NULL, size, PROT_NONE,
@@ -199,6 +195,10 @@ static void arena_free_platform(Arena* arena) {
     munmap(arena->arena_ptr, arena->arena_size);
 }
 
-#endif // Platform
+static size_t arena_get_page_size_platform() {
+    return (size_t)sysconf(_SC_PAGESIZE);
+}
+
+#endif // Platform-specific code.
 
 #endif // ARENA_IMPLEMENTATION
