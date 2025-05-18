@@ -1,10 +1,10 @@
 #ifndef ARENA_H
 #define ARENA_H
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h> // printf
+#include <stdint.h> // uintptr_t
+#include <string.h> // memset
+#include <stdlib.h> // EXIT_FAILURE
 
 #define ARENA_ALIGNMENT 16
 #define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
