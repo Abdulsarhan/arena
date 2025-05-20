@@ -19,17 +19,17 @@ So, you should only allocate as much memory as your arena will ever use.
 #include "arena.h"
 
 int main() {
-Arena arena = init_arena(GIGABYTES(64)); 
+    Arena arena = init_arena(GIGABYTES(1)); 
 
-char* hello_world = arena_alloc(&arena, sizeof(char) * 13);
+    char* hello_world = arena_alloc(&arena, sizeof(char) * 13);
 
-hello_world = "Hello World!"
+    strcpy(hello_world, "Hello World!");
 
-printf(hello_world);
+    printf("%s\n", hello_world);
 
-free_arena(&arena);
+    free_arena(&arena);
 
-return 0;
+    return 0;
 
 }
 ```
