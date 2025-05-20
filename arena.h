@@ -87,14 +87,11 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
             fprintf(stderr, "VirtualAlloc commit failed: %lu\n", GetLastError());
             exit(EXIT_FAILURE);
         }
-#else // POSIX
-        if (mprotect(arena->arena_ptr + arena->committed_size,
-                     commit_amount, PROT_READ | PROT_WRITE) != 0) {
-            perror("mprotect");
-            exit(EXIT_FAILURE);
-        }
-#endif
         arena->committed_size = new_commit_end;
+#else // POSIX
+        // No need to commit explicitly on Linux; memory is committed on first access.
+        arena->committed_size = new_commit_end;
+#endif
     }
 
     arena->memory_used += total_size;
@@ -183,7 +180,7 @@ static Arena arena_init_platform(size_t size) {
     }
 
     arena.arena_size = size;
-    arena.committed_size = 0;
+    arena.committed_size = 0; // Tracks usage; no commit necessary
     return arena;
 }
 
