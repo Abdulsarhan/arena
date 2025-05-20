@@ -33,7 +33,7 @@
 typedef struct {
     size_t memory_used;
     size_t committed_size;
-    size_t arena_size;
+    size_t reserved_size;
     char* arena_ptr;
 } Arena;
 
@@ -70,7 +70,7 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
     size_t total_size = padding + alloc_size;
     size_t required = arena->memory_used + total_size;
 
-    if (required > arena->arena_size) {
+    if (required > arena->reserved_size) {
         fprintf(stderr, "ERROR: Allocation exceeds arena capacity!\n");
         exit(EXIT_FAILURE);
     }
@@ -89,7 +89,6 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
         }
         arena->committed_size = new_commit_end;
 #else // POSIX
-        // No need to commit explicitly on Linux; memory is committed on first access.
         arena->committed_size = new_commit_end;
 #endif
     }
@@ -109,7 +108,7 @@ ARENADEF void free_arena(Arena* arena) {
     if (arena->arena_ptr) {
         arena_free_platform(arena);
         arena->arena_ptr = NULL;
-        arena->arena_size = 0;
+        arena->reserved_size = 0;
         arena->committed_size = 0;
         arena->memory_used = 0;
     }
@@ -117,7 +116,7 @@ ARENADEF void free_arena(Arena* arena) {
 
 ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_size) {
     uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
-    uintptr_t arena_end = arena_start + arena->arena_size;
+    uintptr_t arena_end = arena_start + arena->reserved_size;
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
@@ -151,13 +150,12 @@ static Arena arena_init_platform(size_t size) {
         exit(EXIT_FAILURE);
     }
 
-    arena.arena_size = size;
+    arena.reserved_size = size;
     arena.committed_size = 0;
     return arena;
 }
 
 static void arena_reset_platform(Arena* arena) {
-    // Just zero committed memory
     memset(arena->arena_ptr, 0, arena->committed_size);
 }
 
@@ -179,8 +177,8 @@ static Arena arena_init_platform(size_t size) {
         exit(EXIT_FAILURE);
     }
 
-    arena.arena_size = size;
-    arena.committed_size = 0; // Tracks usage; no commit necessary
+    arena.reserved_size = size;
+    arena.committed_size = 0;
     return arena;
 }
 
@@ -189,7 +187,7 @@ static void arena_reset_platform(Arena* arena) {
 }
 
 static void arena_free_platform(Arena* arena) {
-    munmap(arena->arena_ptr, arena->arena_size);
+    munmap(arena->arena_ptr, arena->reserved_size);
 }
 
 static size_t arena_get_page_size_platform() {
