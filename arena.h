@@ -1,7 +1,7 @@
-#include <stdio.h> // printf
-#include <string.h> // memset
-#include <stdint.h> // uintptr_t
-#include <stdlib.h> // EXIT_FAILURE
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #define ARENA_ALIGNMENT 16
 #define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
@@ -73,21 +73,33 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
         fprintf(stderr, "ERROR: Allocation exceeds arena capacity!\n");
         return NULL;
     }
-/*
-  Because windows doesn't allow you to commit more than your RAM + Pagefile,
-  we have to do this shit...
-*/
 
-#ifdef ARENA_WINDOWS
+#if defined(ARENA_WINDOWS)
     size_t page_size = arena_get_page_size_platform();
-    size_t new_commit_end = ALIGN_UP(required, page_size);
-    if (new_commit_end > arena->committed_size) {
+    if (required > arena->committed_size) {
+        size_t new_commit_end = ALIGN_UP(required, page_size);
         size_t commit_amount = new_commit_end - arena->committed_size;
-        void* result = VirtualAlloc(arena->ptr + arena->committed_size, commit_amount, MEM_COMMIT, PAGE_READWRITE);
+
+        void* result = VirtualAlloc(arena->ptr + arena->committed_size,
+                                    commit_amount, MEM_COMMIT, PAGE_READWRITE);
         if (!result) {
             fprintf(stderr, "VirtualAlloc commit failed: %lu\n", GetLastError());
-            return NULL;
+            exit(EXIT_FAILURE);
         }
+        arena->committed_size = new_commit_end;
+    }
+#elif defined(ARENA_POSIX)
+    size_t page_size = arena_get_page_size_platform();
+    if (required > arena->committed_size) {
+        size_t new_commit_end = ALIGN_UP(required, page_size);
+        size_t commit_amount = new_commit_end - arena->committed_size;
+
+        void* commit_ptr = arena->ptr + arena->committed_size;
+        if (mprotect(commit_ptr, commit_amount, PROT_READ | PROT_WRITE) != 0) {
+            perror("mprotect commit failed");
+            exit(EXIT_FAILURE);
+        }
+
         arena->committed_size = new_commit_end;
     }
 #endif
@@ -130,15 +142,20 @@ ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_
 
 #ifdef ARENA_WINDOWS
 
+static size_t arena_get_page_size_platform() {
+    SYSTEM_INFO sys_info;
+    GetSystemInfo(&sys_info);
+    return (size_t)sys_info.dwPageSize;
+}
+
 static Arena arena_init_platform(size_t size) {
     Arena arena = {0};
     size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
-    printf("Reserving address space of size: %zu bytes\n", size);
     arena.ptr = (char*)VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
     if (!arena.ptr) {
-        fprintf(stderr, "VirtualAlloc reserve failed: %lu\n", GetLastError());
+        fprintf(stderr, "VirtualAlloc reserve failed with error: %lu\n", GetLastError());
         exit(EXIT_FAILURE);
     }
 
@@ -155,20 +172,19 @@ static void arena_free_platform(Arena* arena) {
     VirtualFree(arena->ptr, 0, MEM_RELEASE);
 }
 
-static size_t arena_get_page_size_platform() {
-    SYSTEM_INFO sys_info;
-    GetSystemInfo(&sys_info);
-    return (size_t)sys_info.dwPageSize;
-}
-
 #else // POSIX
+
+static size_t arena_get_page_size_platform() {
+    return (size_t)sysconf(_SC_PAGESIZE);
+}
 
 static Arena arena_init_platform(size_t size) {
     Arena arena = {0};
     size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
-    arena.ptr = (char*)mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    arena.ptr = (char*)mmap(NULL, size, PROT_NONE,
+                            MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (arena.ptr == MAP_FAILED) {
         perror("mmap reserve failed");
         exit(EXIT_FAILURE);
@@ -187,10 +203,6 @@ static void arena_free_platform(Arena* arena) {
     munmap(arena->ptr, arena->size);
 }
 
-static size_t arena_get_page_size_platform() {
-    return (size_t)sysconf(_SC_PAGESIZE);
-}
-
-#endif
+#endif // Platform-specific
 
 #endif // ARENA_IMPLEMENTATION
