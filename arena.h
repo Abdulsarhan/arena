@@ -33,7 +33,7 @@
 typedef struct {
     size_t memory_used;
     size_t committed_size;
-    size_t reserved_size;
+    size_t arena_size;
     char* arena_ptr;
 } Arena;
 
@@ -70,27 +70,9 @@ ARENADEF void* arena_alloc(Arena* arena, size_t alloc_size) {
     size_t total_size = padding + alloc_size;
     size_t required = arena->memory_used + total_size;
 
-    if (required > arena->reserved_size) {
+    if (required > arena->arena_size) {
         fprintf(stderr, "ERROR: Allocation exceeds arena capacity!\n");
         exit(EXIT_FAILURE);
-    }
-
-    if (required > arena->committed_size) {
-        size_t page_size = arena_get_page_size_platform();
-        size_t new_commit_end = ALIGN_UP(required, page_size);
-        size_t commit_amount = new_commit_end - arena->committed_size;
-
-#ifdef ARENA_WINDOWS
-        void* result = VirtualAlloc(arena->arena_ptr + arena->committed_size,
-                                    commit_amount, MEM_COMMIT, PAGE_READWRITE);
-        if (!result) {
-            fprintf(stderr, "VirtualAlloc commit failed: %lu\n", GetLastError());
-            exit(EXIT_FAILURE);
-        }
-        arena->committed_size = new_commit_end;
-#else // POSIX
-        arena->committed_size = new_commit_end;
-#endif
     }
 
     arena->memory_used += total_size;
@@ -108,7 +90,7 @@ ARENADEF void free_arena(Arena* arena) {
     if (arena->arena_ptr) {
         arena_free_platform(arena);
         arena->arena_ptr = NULL;
-        arena->reserved_size = 0;
+        arena->arena_size = 0;
         arena->committed_size = 0;
         arena->memory_used = 0;
     }
@@ -116,7 +98,7 @@ ARENADEF void free_arena(Arena* arena) {
 
 ARENADEF int reset_region(const Arena* arena, void* region_start, size_t region_size) {
     uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
-    uintptr_t arena_end = arena_start + arena->reserved_size;
+    uintptr_t arena_end = arena_start + arena->arena_size;
     uintptr_t region_addr = (uintptr_t)region_start;
 
     if (region_addr >= arena_start && region_addr + region_size <= arena_end) {
@@ -138,20 +120,21 @@ static size_t arena_get_page_size_platform() {
     GetSystemInfo(&sys_info);
     return (size_t)sys_info.dwPageSize;
 }
-
 static Arena arena_init_platform(size_t size) {
     Arena arena = {0};
     size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
-    arena.arena_ptr = (char*)VirtualAlloc(NULL, size, MEM_RESERVE, PAGE_READWRITE);
+    printf("Requesting allocation of size: %zu bytes (aligned to %zu bytes)\n", size, page_size);
+    
+    arena.arena_ptr = (char*)VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!arena.arena_ptr) {
-        fprintf(stderr, "VirtualAlloc reserve failed with error: %lu\n", GetLastError());
+        fprintf(stderr, "VirtualAlloc failed with error: %lu\n", GetLastError());
         exit(EXIT_FAILURE);
     }
 
-    arena.reserved_size = size;
-    arena.committed_size = 0;
+    arena.arena_size = size;
+    arena.committed_size = size;
     return arena;
 }
 
@@ -170,15 +153,15 @@ static Arena arena_init_platform(size_t size) {
     size_t page_size = arena_get_page_size_platform();
     size = ALIGN_UP(size, page_size);
 
-    arena.arena_ptr = (char*)mmap(NULL, size, PROT_NONE,
+    arena.arena_ptr = (char*)mmap(NULL, size, PROT_READ | PROT_WRITE,
                                   MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (arena.arena_ptr == MAP_FAILED) {
-        perror("mmap reserve failed");
+        perror("mmap failed");
         exit(EXIT_FAILURE);
     }
 
-    arena.reserved_size = size;
-    arena.committed_size = 0;
+    arena.arena_size = size;
+    arena.committed_size = size;
     return arena;
 }
 
@@ -187,7 +170,7 @@ static void arena_reset_platform(Arena* arena) {
 }
 
 static void arena_free_platform(Arena* arena) {
-    munmap(arena->arena_ptr, arena->reserved_size);
+    munmap(arena->arena_ptr, arena->arena_size);
 }
 
 static size_t arena_get_page_size_platform() {
@@ -197,3 +180,4 @@ static size_t arena_get_page_size_platform() {
 #endif // Platform-specific code.
 
 #endif // ARENA_IMPLEMENTATION
+
