@@ -6,8 +6,8 @@
 #include <string.h> // memset
 #include <stdlib.h> // EXIT_FAILURE
 
-#define ARENA_ALIGNMENT 16
-#define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+#define ARENA_PUSH_STRUCT(arena, T) (T*)arena_push(arena, sizeof(T))
+#define ARENA_PUSH_ARRAY(arena, T, n) (T*)arena_push(arena, sizeof(T) * n)
 
 #ifdef ARENA_STATIC
 #define ARENADEF static
@@ -16,7 +16,7 @@
 #endif
 
 typedef struct {
-    size_t memory_used; // total memory allocated with arena_alloc
+    size_t memory_used; // total memory allocated with arena_push
     size_t capacity;
     char* arena_ptr;
 } arena;
@@ -25,11 +25,13 @@ typedef struct {
 extern "C" {
 #endif
 
-ARENADEF arena init_arena(size_t size);
-ARENADEF void* arena_alloc(arena* arena, size_t alloc_size);
-ARENADEF void reset_arena(arena* arena);
-ARENADEF void free_arena(arena* arena);
-ARENADEF int reset_region(const arena* arena, void* region_start, size_t region_size);
+ARENADEF arena arena_init(size_t size);
+ARENADEF void *arena_push(arena *arena, size_t alloc_size);
+ARENADEF void arena_pop(arena *arena, size_t size);
+ARENADEF void arena_pop_to(arena *arena, size_t pos);
+ARENADEF void arena_clear(arena *arena);
+ARENADEF void arena_destroy(arena *arena);
+ARENADEF int arena_reset_region(const arena *arena, void* region_start, size_t region_size);
 
 #ifdef __cplusplus
 }
@@ -37,7 +39,13 @@ ARENADEF int reset_region(const arena* arena, void* region_start, size_t region_
 
 #ifdef ARENA_IMPLEMENTATION
 
-ARENADEF arena init_arena(size_t size) {
+#ifndef ARENA_ALIGNMENT
+#define ARENA_ALIGNMENT 16
+#endif
+
+#define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
+
+ARENADEF arena arena_init(size_t size) {
     arena arena = { 0 };
     arena.capacity = size;
     arena.arena_ptr = (char*)malloc(size);
@@ -48,7 +56,7 @@ ARENADEF arena init_arena(size_t size) {
     return arena;
 }
 
-ARENADEF void* arena_alloc(arena* arena, size_t alloc_size) {
+ARENADEF void* arena_push(arena *arena, size_t alloc_size) {
     uintptr_t base = (uintptr_t)(arena->arena_ptr + arena->memory_used);
     uintptr_t aligned = ALIGN_UP(base, ARENA_ALIGNMENT);
     size_t padding = aligned - base;
@@ -63,21 +71,31 @@ ARENADEF void* arena_alloc(arena* arena, size_t alloc_size) {
     return (void*)aligned;
 }
 
-ARENADEF void reset_arena(arena* arena) {
+ARENADEF void arena_pop(arena *arena, size_t size) {
+    size = ARENA_MIN(size, arena->memory_used);
+    arena->memory_used -= size;
+}
+
+ARENADEF void arena_pop_to(arena *arena, size_t pos) {
+    size_t size = pos < arena->memory_used ? arena->memory_used - pos : 0;
+    arena_pop(arena, size);
+}
+
+ARENADEF void arena_clear(arena *arena) {
     if (arena->arena_ptr) {
         memset(arena->arena_ptr, 0, arena->capacity);
         arena->memory_used = 0;
     }
 }
 
-ARENADEF void free_arena(arena* arena) {
+ARENADEF void arena_destroy(arena *arena) {
     if (arena->arena_ptr) {
         free(arena->arena_ptr);
         arena->arena_ptr = NULL;
     }
 }
 
-ARENADEF int reset_region(const arena* arena, void* region_start, size_t region_size) {
+ARENADEF int arena_reset_region(const arena *arena, void *region_start, size_t region_size) {
     uintptr_t arena_start = (uintptr_t)arena->arena_ptr;
     uintptr_t arena_end = arena_start + arena->capacity;
     uintptr_t region_addr = (uintptr_t)region_start;

@@ -51,7 +51,10 @@ ARENADEF int arena_reset_region(const arena *arena, void *region_start, size_t r
 #endif // ARENA_H
 #ifdef ARENA_IMPLEMENTATION
 
+#ifndef ARENA_ALIGNMENT
 #define ARENA_ALIGNMENT 16
+#endif
+
 #define ALIGN_UP(x, a) (((x) + ((a) - 1)) & ~((a) - 1))
 
 #define ARENA_MIN(a, b) (((a) < (b)) ? (a) : (b))
