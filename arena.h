@@ -96,7 +96,7 @@ ARENADEF void* arena_push(arena* arena, size_t size) {
     }
 
     if (required > arena->committed_size) {
-        size_t new_commit_end = ALIGN_UP(required, arena.page_size);
+        size_t new_commit_end = ALIGN_UP(required, arena->page_size);
         size_t commit_amount = new_commit_end - arena->committed_size;
 
         void* result = VirtualAlloc(arena->ptr + arena->committed_size,
