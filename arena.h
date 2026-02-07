@@ -68,7 +68,7 @@ ARENADEF int arena_reset_region(const mem_arena *arena, void *region_start, size
 #define ARENA_MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define ARENA_MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-#define ARENA_BASE_POS sizeof(arena)
+#define ARENA_BASE_POS sizeof(mem_arena)
 
 static void *arena_memset(void *buf, int value, size_t count) {
     unsigned char *p = buf;
